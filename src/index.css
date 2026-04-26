@@ -1,0 +1,14 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #475569 transparent;
+  }
+
+  .dark * {
+    scrollbar-color: #334155 transparent;
+  }
+}

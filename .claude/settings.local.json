@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm create *)",
+      "Bash(where node *)",
+      "Bash(where npm *)",
+      "Bash(where npx *)",
+      "PowerShell(Get-Command node, npm, npx -ErrorAction SilentlyContinue)",
+      "PowerShell($env:PATH -split ';' | Where-Object { $_ -match 'node|npm' })",
+      "WebFetch(domain:corsproxy.io)",
+      "WebFetch(domain:www.tcgplayer.com)",
+      "mcp__Claude_in_Chrome__tabs_context_mcp",
+      "Bash(npx tsc *)"
+    ]
+  }
+}
