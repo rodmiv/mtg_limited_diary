@@ -25,11 +25,11 @@ export async function fetchSetCards(setCode: string): Promise<ScryfallCard[]> {
     `${BASE}/cards/search?q=set:${setCode}+game:paper&order=set&unique=cards`;
 
   while (url) {
-    const res = await fetch(url);
+    const res: Response = await fetch(url);
     if (!res.ok) throw new Error(`Failed to fetch cards for set ${setCode}`);
-    const data = await res.json();
-    cards.push(...(data.data as ScryfallCard[]));
-    url = data.has_more ? (data.next_page as string) : null;
+    const data = await res.json() as { data: ScryfallCard[]; has_more: boolean; next_page: string };
+    cards.push(...data.data);
+    url = data.has_more ? data.next_page : null;
     if (url) await scryfallDelay();
   }
 

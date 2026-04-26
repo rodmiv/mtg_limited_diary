@@ -46,7 +46,7 @@ export default function LSVImporter() {
     setStep('saving');
 
     const toSave: CardReview[] = result.results
-      .map(item => {
+      .map((item): CardReview | null => {
         const card = cards.find(c => c.name === item.cardName);
         if (!card) return null; // article card not in this set (Special Guests, lands listed without a block, etc.)
         const existing = reviews[card.id] as CardReview | undefined;

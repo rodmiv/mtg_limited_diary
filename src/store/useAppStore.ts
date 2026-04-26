@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { ScryfallCard, ScryfallSet, CardReview, ColorFilter, Rarity, Archetype } from '../types';
 
-interface Filters {
+export interface Filters {
   colors: ColorFilter[];
   rarities: Rarity[];
   search: string;

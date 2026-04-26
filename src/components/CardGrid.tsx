@@ -1,9 +1,10 @@
 import { useAppStore } from '../store/useAppStore';
+import type { Filters } from '../store/useAppStore';
 import { getCardColors } from '../lib/scryfall';
 import CardTile from './CardTile';
-import type { ScryfallCard } from '../types';
+import type { ScryfallCard, CardReview } from '../types';
 
-function applyFilters(cards: ScryfallCard[], filters: ReturnType<typeof useAppStore>['filters'], reviews: ReturnType<typeof useAppStore>['reviews']): ScryfallCard[] {
+function applyFilters(cards: ScryfallCard[], filters: Filters, reviews: Record<string, CardReview>): ScryfallCard[] {
   return cards.filter(card => {
     if (filters.search) {
       const q = filters.search.toLowerCase();
