@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useAppStore } from '../store/useAppStore';
 import { getCardImage } from '../lib/scryfall';
 import type { ScryfallCard } from '../types';
@@ -6,6 +6,8 @@ import type { ScryfallCard } from '../types';
 // ── helpers ────────────────────────────────────────────────────────────────
 
 const PT_BUCKETS = ['0', '1', '2', '3', '4', '5', '6+', '*'];
+
+const WUBRG_ORDER: Record<string, number> = { W: 0, U: 1, B: 2, R: 3, G: 4 };
 
 function bucketPT(val: string | undefined): string | null {
   if (val == null) return null;
@@ -32,6 +34,12 @@ function colorGroup(card: ScryfallCard): string {
   if (cols.length === 0) return 'C';
   if (cols.length > 1) return 'Multi';
   return cols[0];
+}
+
+function pairKey(colors: string[]): string {
+  return [...colors]
+    .sort((a, b) => (WUBRG_ORDER[a] ?? 9) - (WUBRG_ORDER[b] ?? 9))
+    .join('');
 }
 
 // ── sub-components ─────────────────────────────────────────────────────────
@@ -90,11 +98,25 @@ const COLOR_STYLES: Array<{ key: string; label: string; bar: string }> = [
   { key: 'C', label: 'Colorless', bar: 'bg-gray-400' },
 ];
 
+// Color dot styles for pair buttons
+const COLOR_DOT: Record<string, string> = {
+  W: 'bg-yellow-100 border border-gray-300',
+  U: 'bg-blue-500',
+  B: 'bg-gray-800',
+  R: 'bg-red-500',
+  G: 'bg-green-600',
+};
+
+function ColorDot({ color }: { color: string }) {
+  return <span className={`inline-block w-3 h-3 rounded-full ${COLOR_DOT[color] ?? 'bg-gray-400'}`} />;
+}
+
 // ── main component ─────────────────────────────────────────────────────────
 
 export default function SetStats() {
   const cards = useAppStore(s => s.cards);
   const reviews = useAppStore(s => s.reviews);
+  const [selectedPair, setSelectedPair] = useState<string | null>(null);
 
   const stats = useMemo(() => {
     const rarity = { common: 0, uncommon: 0, rare: 0, mythic: 0 };
@@ -105,8 +127,8 @@ export default function SetStats() {
     const colors: Record<string, number> = { W: 0, U: 0, B: 0, R: 0, G: 0, Multi: 0, C: 0 };
     const cmcBuckets: Record<string, number> = { '0': 0, '1': 0, '2': 0, '3': 0, '4': 0, '5': 0, '6+': 0 };
     const ptMap: Record<string, number> = {};
-    const legendaries: ScryfallCard[] = [];
-    const signposts: ScryfallCard[] = [];
+    const signpostsByPair: Record<string, ScryfallCard[]> = {};
+    let legendaryCount = 0;
     let graded = 0;
 
     for (const card of cards) {
@@ -138,21 +160,26 @@ export default function SetStats() {
         }
       }
 
-      // Legendary creatures
+      // Legendary creatures (count only)
       if (card.type_line.includes('Legendary') && card.type_line.includes('Creature')) {
-        legendaries.push(card);
+        legendaryCount++;
       }
 
-      // Signpost uncommons (multicolored uncommons)
-      if (card.rarity === 'uncommon' && (card.colors?.length ?? 0) >= 2) {
-        signposts.push(card);
+      // Signpost uncommons grouped by two-color pair
+      if (card.rarity === 'uncommon') {
+        const cols = card.colors ?? [];
+        if (cols.length === 2) {
+          const key = pairKey(cols);
+          if (!signpostsByPair[key]) signpostsByPair[key] = [];
+          signpostsByPair[key].push(card);
+        }
       }
 
       // Graded
       if (reviews[card.id]?.my_grade != null) graded++;
     }
 
-    return { rarity, types, colors, cmcBuckets, ptMap, legendaries, signposts, graded };
+    return { rarity, types, colors, cmcBuckets, ptMap, signpostsByPair, legendaryCount, graded };
   }, [cards, reviews]);
 
   if (cards.length === 0) {
@@ -172,14 +199,24 @@ export default function SetStats() {
   const activePow = PT_BUCKETS.filter(p => PT_BUCKETS.some(t => (stats.ptMap[`${p}/${t}`] ?? 0) > 0));
   const activeTou = PT_BUCKETS.filter(t => PT_BUCKETS.some(p => (stats.ptMap[`${p}/${t}`] ?? 0) > 0));
 
+  // Signpost pairs sorted by WUBRG order
+  const pairs = Object.keys(stats.signpostsByPair).sort((a, b) => {
+    const scoreA = (WUBRG_ORDER[a[0]] ?? 9) * 10 + (WUBRG_ORDER[a[1]] ?? 9);
+    const scoreB = (WUBRG_ORDER[b[0]] ?? 9) * 10 + (WUBRG_ORDER[b[1]] ?? 9);
+    return scoreA - scoreB;
+  });
+
+  const activePair = (selectedPair && stats.signpostsByPair[selectedPair]) ? selectedPair : (pairs[0] ?? null);
+  const totalSignposts = Object.values(stats.signpostsByPair).reduce((n, arr) => n + arr.length, 0);
+
   return (
     <div className="p-4 sm:p-6 space-y-4 max-w-5xl mx-auto overflow-auto">
 
       {/* Overview */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <StatCard label="Total Cards" value={cards.length} />
-        <StatCard label="Legendary Creatures" value={stats.legendaries.length} />
-        <StatCard label="Signpost Uncommons" value={stats.signposts.length} />
+        <StatCard label="Legendary Creatures" value={stats.legendaryCount} />
+        <StatCard label="Signpost Uncommons" value={totalSignposts} />
         <StatCard label="Graded" value={`${stats.graded} / ${cards.length}`} />
       </div>
 
@@ -308,43 +345,46 @@ export default function SetStats() {
         </div>
       )}
 
-      {/* Signpost uncommons */}
-      {stats.signposts.length > 0 && (
+      {/* Signpost uncommons by color pair */}
+      {pairs.length > 0 && (
         <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-4">
           <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">
-            Signpost Uncommons ({stats.signposts.length})
+            Signpost Uncommons
           </h3>
-          <div className="flex flex-wrap gap-2">
-            {stats.signposts.map(card => (
-              <img
-                key={card.id}
-                src={getCardImage(card, 'small')}
-                alt={card.name}
-                title={card.name}
-                className="h-24 rounded shadow-sm hover:scale-105 transition-transform"
-              />
-            ))}
-          </div>
-        </div>
-      )}
 
-      {/* Legendary creatures */}
-      {stats.legendaries.length > 0 && (
-        <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-4">
-          <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">
-            Legendary Creatures ({stats.legendaries.length})
-          </h3>
-          <div className="flex flex-wrap gap-2">
-            {stats.legendaries.map(card => (
-              <img
-                key={card.id}
-                src={getCardImage(card, 'small')}
-                alt={card.name}
-                title={card.name}
-                className="h-24 rounded shadow-sm hover:scale-105 transition-transform"
-              />
+          {/* Pair selector buttons */}
+          <div className="flex flex-wrap gap-2 mb-4">
+            {pairs.map(pair => (
+              <button
+                key={pair}
+                onClick={() => setSelectedPair(pair)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+                  pair === activePair
+                    ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300'
+                    : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-400 dark:hover:border-gray-500'
+                }`}
+              >
+                {pair.split('').map(c => <ColorDot key={c} color={c} />)}
+                <span>{pair}</span>
+                <span className="text-xs opacity-60">({stats.signpostsByPair[pair].length})</span>
+              </button>
             ))}
           </div>
+
+          {/* Cards for selected pair */}
+          {activePair && (
+            <div className="flex flex-wrap gap-3">
+              {stats.signpostsByPair[activePair].map(card => (
+                <img
+                  key={card.id}
+                  src={getCardImage(card, 'normal')}
+                  alt={card.name}
+                  title={card.name}
+                  className="h-56 rounded-lg shadow-md hover:scale-105 transition-transform"
+                />
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
