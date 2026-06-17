@@ -117,6 +117,7 @@ export default function SetStats() {
   const cards = useAppStore(s => s.cards);
   const reviews = useAppStore(s => s.reviews);
   const [selectedPair, setSelectedPair] = useState<string | null>(null);
+  const [keyword, setKeyword] = useState('');
 
   const stats = useMemo(() => {
     const rarity = { common: 0, uncommon: 0, rare: 0, mythic: 0 };
@@ -181,6 +182,30 @@ export default function SetStats() {
 
     return { rarity, types, colors, cmcBuckets, ptMap, signpostsByPair, legendaryCount, graded };
   }, [cards, reviews]);
+
+  const keywordStats = useMemo(() => {
+    const needle = keyword.trim().toLowerCase();
+    if (!needle) return null;
+
+    const counts: Record<string, number> = { W: 0, U: 0, B: 0, R: 0, G: 0, Multi: 0, C: 0 };
+    let total = 0;
+
+    for (const card of cards) {
+      const searchable = [
+        card.type_line,
+        card.oracle_text ?? '',
+        ...(card.card_faces?.map(f => `${f.type_line} ${f.oracle_text ?? ''}`) ?? []),
+      ].join(' ').toLowerCase();
+
+      if (searchable.includes(needle)) {
+        const cg = colorGroup(card);
+        counts[cg]++;
+        total++;
+      }
+    }
+
+    return { counts, total };
+  }, [cards, keyword]);
 
   if (cards.length === 0) {
     return (
@@ -344,6 +369,44 @@ export default function SetStats() {
           </div>
         </div>
       )}
+
+      {/* Keyword search */}
+      <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-4">
+        <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">
+          Keyword Search
+        </h3>
+        <input
+          type="text"
+          value={keyword}
+          onChange={e => setKeyword(e.target.value)}
+          placeholder="e.g. flying, Zombie, enters the battlefield…"
+          className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-gray-400 dark:placeholder-gray-500"
+        />
+
+        {keywordStats && (
+          <div className="mt-4 space-y-1">
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+              <span className="font-semibold text-gray-700 dark:text-gray-200">{keywordStats.total}</span>
+              {' '}card{keywordStats.total !== 1 ? 's' : ''} match &ldquo;{keyword.trim()}&rdquo;
+            </p>
+            {keywordStats.total === 0 ? (
+              <p className="text-xs text-gray-400 italic">No cards found.</p>
+            ) : (
+              COLOR_STYLES.map(({ key, label, bar }) =>
+                keywordStats.counts[key] > 0 ? (
+                  <HBar
+                    key={key}
+                    label={label}
+                    count={keywordStats.counts[key]}
+                    max={keywordStats.total}
+                    colorClass={bar}
+                  />
+                ) : null
+              )
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Signpost uncommons by color pair */}
       {pairs.length > 0 && (
