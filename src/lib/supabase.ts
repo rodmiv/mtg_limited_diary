@@ -1,13 +1,23 @@
 import { createClient } from '@supabase/supabase-js';
 import type { CardReview, Archetype } from '../types';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
-const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
 
-export const supabase = createClient(supabaseUrl, supabaseKey);
+export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseKey);
+
+export const supabase = isSupabaseConfigured
+  ? createClient(supabaseUrl!, supabaseKey!)
+  : null;
+
+function getClient() {
+  if (!supabase) throw new Error('Supabase is not configured (missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY)');
+  return supabase;
+}
 
 export async function fetchReviewsForSet(setCode: string): Promise<CardReview[]> {
-  const { data, error } = await supabase
+  if (!isSupabaseConfigured) return [];
+  const { data, error } = await getClient()
     .from('card_reviews')
     .select('*')
     .eq('set_code', setCode);
@@ -30,7 +40,7 @@ function stripPayload({ id, ...rest }: CardReview) {
 }
 
 export async function upsertReview(review: CardReview): Promise<CardReview> {
-  const { data, error } = await supabase
+  const { data, error } = await getClient()
     .from('card_reviews')
     .upsert(stripPayload(review), { onConflict: 'set_code,card_id' })
     .select()
@@ -41,7 +51,7 @@ export async function upsertReview(review: CardReview): Promise<CardReview> {
 }
 
 export async function upsertManyReviews(reviews: CardReview[]): Promise<void> {
-  const { error } = await supabase
+  const { error } = await getClient()
     .from('card_reviews')
     .upsert(reviews.map(stripPayload), { onConflict: 'set_code,card_id' });
 
@@ -49,7 +59,8 @@ export async function upsertManyReviews(reviews: CardReview[]): Promise<void> {
 }
 
 export async function fetchArchetypesForSet(setCode: string): Promise<Archetype[]> {
-  const { data, error } = await supabase
+  if (!isSupabaseConfigured) return [];
+  const { data, error } = await getClient()
     .from('set_archetypes')
     .select('*')
     .eq('set_code', setCode)
@@ -65,7 +76,7 @@ export async function upsertArchetype(archetype: Archetype): Promise<Archetype> 
     id: archetype.id ?? crypto.randomUUID(),
     updated_at: new Date().toISOString(),
   };
-  const { data, error } = await supabase
+  const { data, error } = await getClient()
     .from('set_archetypes')
     .upsert(payload)
     .select()
@@ -76,7 +87,7 @@ export async function upsertArchetype(archetype: Archetype): Promise<Archetype> 
 }
 
 export async function deleteArchetype(id: string): Promise<void> {
-  const { error } = await supabase
+  const { error } = await getClient()
     .from('set_archetypes')
     .delete()
     .eq('id', id);

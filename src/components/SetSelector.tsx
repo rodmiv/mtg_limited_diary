@@ -42,16 +42,29 @@ export default function SetSelector() {
     setSelectedSet(set);
     setCardsLoading(true);
     try {
-      const [cards, reviews, archetypes] = await Promise.all([
+      const [cardsResult, reviewsResult, archetypesResult] = await Promise.allSettled([
         fetchSetCards(set.code),
         fetchReviewsForSet(set.code),
         fetchArchetypesForSet(set.code),
       ]);
-      setCards(cards);
-      loadReviews(reviews);
-      loadArchetypes(archetypes);
-    } catch (err) {
-      console.error('Failed to load set data', err);
+
+      if (cardsResult.status === 'fulfilled') {
+        setCards(cardsResult.value);
+      } else {
+        console.error('Failed to load cards from Scryfall', cardsResult.reason);
+      }
+
+      if (reviewsResult.status === 'fulfilled') {
+        loadReviews(reviewsResult.value);
+      } else {
+        console.error('Failed to load reviews', reviewsResult.reason);
+      }
+
+      if (archetypesResult.status === 'fulfilled') {
+        loadArchetypes(archetypesResult.value);
+      } else {
+        console.error('Failed to load archetypes', archetypesResult.reason);
+      }
     } finally {
       setCardsLoading(false);
     }
