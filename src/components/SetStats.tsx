@@ -187,7 +187,7 @@ export default function SetStats() {
     const needle = keyword.trim().toLowerCase();
     if (!needle) return null;
 
-    const counts: Record<string, number> = { W: 0, U: 0, B: 0, R: 0, G: 0, Multi: 0, C: 0 };
+    const counts: Record<string, number> = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 };
     let total = 0;
 
     for (const card of cards) {
@@ -198,9 +198,15 @@ export default function SetStats() {
       ].join(' ').toLowerCase();
 
       if (searchable.includes(needle)) {
-        const cg = colorGroup(card);
-        counts[cg]++;
         total++;
+        const cols = card.colors ?? card.color_identity ?? [];
+        if (cols.length === 0) {
+          counts['C']++;
+        } else {
+          for (const c of cols) {
+            if (c in counts) counts[c]++;
+          }
+        }
       }
     }
 
