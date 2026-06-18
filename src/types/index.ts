@@ -24,6 +24,8 @@ export interface ScryfallCard {
     mana_cost?: string;
     type_line: string;
     oracle_text?: string;
+    power?: string;
+    toughness?: string;
     image_uris?: {
       small: string;
       normal: string;

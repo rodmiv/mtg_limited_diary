@@ -11,6 +11,7 @@ type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 export default function CardPanel() {
   const { selectedCard, selectedSet, setSelectedCard, reviews, updateReview } = useAppStore();
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
+  const [faceIndex, setFaceIndex] = useState(0);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const card = selectedCard!;
@@ -24,9 +25,10 @@ export default function CardPanel() {
     pro_review: '',
   };
 
-  // Reset save status when switching cards
+  // Reset state when switching cards
   useEffect(() => {
     setSaveStatus('idle');
+    setFaceIndex(0);
     return () => {
       if (saveTimer.current) clearTimeout(saveTimer.current);
     };
@@ -49,8 +51,13 @@ export default function CardPanel() {
     }, 800);
   };
 
-  const imgSrc = getCardImage(card, 'normal');
-  const oracleText = getCardOracleText(card);
+  const isDfc = (card.card_faces?.length ?? 0) >= 2 && Boolean(card.card_faces?.[1]?.image_uris);
+  const activeFace = isDfc ? card.card_faces![faceIndex] : null;
+
+  const imgSrc = activeFace?.image_uris?.normal ?? getCardImage(card, 'normal');
+  const typeLine = activeFace?.type_line ?? card.type_line;
+  const manaCost = activeFace?.mana_cost ?? card.mana_cost;
+  const oracleText = activeFace?.oracle_text ?? getCardOracleText(card);
 
   return (
     <div className="h-full flex flex-col bg-white dark:bg-gray-900">
@@ -81,11 +88,23 @@ export default function CardPanel() {
         {/* Card image */}
         {imgSrc && (
           <div className="px-4 pt-4">
-            <img
-              src={imgSrc}
-              alt={card.name}
-              className="w-full rounded-lg shadow-lg"
-            />
+            <div
+              className={isDfc ? 'relative cursor-pointer group' : undefined}
+              onClick={isDfc ? () => setFaceIndex(i => 1 - i) : undefined}
+              title={isDfc ? 'Click to flip' : undefined}
+            >
+              <img
+                src={imgSrc}
+                alt={card.name}
+                className="w-full rounded-lg shadow-lg"
+              />
+              {isDfc && (
+                <div className="absolute bottom-2 right-2 flex items-center gap-1 bg-black/60 text-white text-xs rounded-full px-2 py-1 select-none">
+                  <span>⟳</span>
+                  <span>{faceIndex === 0 ? 'Back' : 'Front'}</span>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -93,10 +112,10 @@ export default function CardPanel() {
         <div className="px-4 pt-3 pb-1">
           <div className="flex items-start justify-between gap-2">
             <div>
-              <p className="text-xs text-gray-500 dark:text-gray-400">{card.type_line}</p>
-              {card.mana_cost && (
+              <p className="text-xs text-gray-500 dark:text-gray-400">{typeLine}</p>
+              {manaCost && (
                 <p className="text-xs text-gray-400 dark:text-gray-500 font-mono">
-                  {card.mana_cost}
+                  {manaCost}
                 </p>
               )}
             </div>
@@ -109,11 +128,15 @@ export default function CardPanel() {
               {oracleText}
             </p>
           )}
-          {(card.power || card.toughness) && (
-            <p className="text-xs font-bold text-gray-700 dark:text-gray-300 mt-1">
-              {card.power}/{card.toughness}
-            </p>
-          )}
+          {(() => {
+            const power = activeFace?.power ?? card.power;
+            const toughness = activeFace?.toughness ?? card.toughness;
+            return (power || toughness) ? (
+              <p className="text-xs font-bold text-gray-700 dark:text-gray-300 mt-1">
+                {power}/{toughness}
+              </p>
+            ) : null;
+          })()}
         </div>
 
         <div className="border-t border-gray-100 dark:border-gray-800 mx-4 my-3" />
